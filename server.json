@@ -1,0 +1,38 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.bxetech/bpe-mcp",
+  "title": "BPE (Bitcoin Pricing Engine)",
+  "description": "MCP server for the BPE (Bitcoin Pricing Engine) market-data API. Lets Claude Desktop, Cursor, and other MCP-enabled agents query consolidated BTC pricing, ML signals, funding-rate skew, and natural-language market briefings.",
+  "repository": {
+    "url": "https://github.com/bxetech/bpe-mcp",
+    "source": "github"
+  },
+  "version": "0.1.1",
+  "websiteUrl": "https://bxetech.com/agents",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@bxetech/bpe-mcp",
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "BPE_API_KEY",
+          "description": "Your BPE API key. Free tier available for evaluation; Agent tier unlocks the full briefing endpoint with ML signals, funding skew, and sentiment. Request at https://bxetech.com/contact.",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "BPE_BASE_URL",
+          "description": "Override the BPE backend endpoint. Defaults to https://mcp.bxetech.com. Use https://mcp-qa1.bxetech.com for QA testing.",
+          "isRequired": false,
+          "default": "https://mcp.bxetech.com",
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}
