@@ -8,6 +8,8 @@ natural-language market briefings — without writing any HTTP boilerplate.
 > **Status:** v0.1 prototype. Four tools, local stdio transport, no LLM
 > calls inside the briefing endpoint (template-rendered). API key required.
 
+Listed in the [official MCP Server Registry](https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.bxetech/bpe-mcp) as `io.github.bxetech/bpe-mcp`. Install via `npm install -g @bxetech/bpe-mcp` or `npx -y @bxetech/bpe-mcp`.
+
 ## Why use it
 
 If you're building an agent that touches Bitcoin markets, you have two
