@@ -1,0 +1,55 @@
+{
+  "name": "@bxetech/bpe-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for the BPE (Bitcoin Pricing Engine) market-data API. Lets Claude Desktop, Cursor, and other MCP-enabled agents query consolidated BTC pricing, ML signals, funding-rate skew, and natural-language market briefings.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "bpe-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    "SKILL.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "prepare": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "bitcoin",
+    "market-data",
+    "bxetech",
+    "claude",
+    "ai-agents"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bxetech/bpe-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bxetech/bpe-mcp/issues"
+  },
+  "homepage": "https://bxetech.com/agents"
+}

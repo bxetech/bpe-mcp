@@ -1,0 +1,43 @@
+# PR + push validation. Runs on every PR (regardless of target) and on
+# every push to main/next. Does NOT publish. Publishing is handled by
+# release.yml on push to main/next via dist-tags.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - next
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify build artifacts
+        run: |
+          test -f dist/index.js
+          test -f dist/client.js
+          test -f dist/tools.js
+          test -f dist/briefing.js
+          echo "Build artifacts verified."
+
+      - name: Verify package contents (dry-run pack)
+        run: npm pack --dry-run
