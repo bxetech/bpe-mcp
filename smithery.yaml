@@ -1,0 +1,50 @@
+# Smithery configuration — https://smithery.ai/docs/config#smitheryyaml
+#
+# Lets users install @bxetech/bpe-mcp via Smithery's CLI or web UI,
+# auto-detecting their MCP client (Claude Desktop / Cursor / Goose /
+# Codex / etc.) and editing the right config file with the right shape.
+#
+# Submission process: Smithery scans the default branch for this file
+# on indexed repos. Repo listing is requested via https://smithery.ai/new
+# (one-time, points at github.com/bxetech/bpe-mcp).
+
+startCommand:
+  type: stdio
+
+configSchema:
+  type: object
+  required:
+    - bpeApiKey
+  properties:
+    bpeApiKey:
+      type: string
+      title: BPE API Key
+      description: |
+        Your BPE API key. Free tier available for evaluation;
+        Agent tier ($750/mo) unlocks the full briefing endpoint with ML
+        signals, funding skew, and sentiment. Get a key at
+        https://bxetech.com/contact.
+    bpeBaseUrl:
+      type: string
+      title: BPE Backend URL
+      description: |
+        Override the BPE backend endpoint. Defaults to production
+        (https://mcp.bxetech.com). Use https://mcp-qa1.bxetech.com for
+        QA testing against a non-production environment.
+      default: https://mcp.bxetech.com
+
+commandFunction:
+  # Smithery evaluates this function with the user's config and uses the
+  # returned {command, args, env} to launch the MCP server.
+  |-
+  (config) => ({
+    command: 'npx',
+    args: ['-y', '@bxetech/bpe-mcp'],
+    env: {
+      BPE_API_KEY: config.bpeApiKey,
+      ...(config.bpeBaseUrl ? { BPE_BASE_URL: config.bpeBaseUrl } : {})
+    }
+  })
+
+exampleConfig:
+  bpeApiKey: bpe_xxxxxxxxxxxxxxxxxxxxxxxx
