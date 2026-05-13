@@ -132,16 +132,28 @@ export async function buildBriefing(
     }
   }
 
-  // Sentiment
+  // Sentiment — FGI is always present when the upstream has any data;
+  // FinBERT + Trends + composite are populated by separate scheduler
+  // jobs and emitted only when their collectors have run.
   if (sent.status === "fulfilled") {
     const s = sent.value;
     const parts: string[] = [];
     if (s?.fear_greed_index != null) {
       parts.push(`F&G ${s.fear_greed_index}${s.fear_greed_label ? ` (${s.fear_greed_label})` : ""}`);
     }
-    if (s?.news_sentiment != null) parts.push(`news ${s.news_sentiment.toFixed(2)}`);
-    if (s?.mempool_stress != null) parts.push(`mempool ${s.mempool_stress.toFixed(2)}`);
-    if (parts.length) lines.push(`Sentiment: ${parts.join(", ")}.`);
+    if (s?.finbert_score != null) {
+      const sign = s.finbert_score > 0 ? "+" : "";
+      parts.push(`news ${sign}${s.finbert_score.toFixed(2)}`);
+    }
+    if (s?.google_trends != null) {
+      parts.push(`trends ${s.google_trends}/100`);
+    }
+    if (parts.length) {
+      const composite = s?.composite_score != null
+        ? ` → composite ${s.composite_score > 0 ? "+" : ""}${s.composite_score.toFixed(2)}`
+        : "";
+      lines.push(`Sentiment: ${parts.join(", ")}${composite}.`);
+    }
   }
 
   // Anomaly hint — only thing computed locally (over the data we just pulled)
