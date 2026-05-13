@@ -7,13 +7,13 @@
     "url": "https://github.com/bxetech/bpe-mcp",
     "source": "github"
   },
-  "version": "0.1.1",
+  "version": "0.2.0",
   "websiteUrl": "https://bxetech.com/agents",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@bxetech/bpe-mcp",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "transport": {
         "type": "stdio"
       },
