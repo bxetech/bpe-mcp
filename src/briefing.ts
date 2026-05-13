@@ -60,12 +60,19 @@ export async function buildBriefing(
 
   const lines: string[] = [];
 
+  // Header: explicit UTC timestamp so the caller can reason about staleness
+  // and distinguish two briefings taken seconds apart.
+  const ts = price.status === "fulfilled" && price.value?.timestamp_ms
+    ? price.value.timestamp_ms
+    : Date.now();
+  lines.push(`As of ${formatIsoUtc(ts)}.`);
+
   // Price line
   if (price.status === "fulfilled" && price.value?.price) {
     const p = price.value;
     const venues = p.exchange_count ?? "?";
     const ageMs = p.timestamp_ms != null ? Math.max(0, Date.now() - p.timestamp_ms) : null;
-    const ageStr = ageMs == null ? "fresh" : ageMs < 1000 ? `${ageMs} ms old` : `${(ageMs / 1000).toFixed(1)}s old`;
+    const ageStr = formatAge(ageMs);
     lines.push(`BTC: $${formatPrice(p.price)} (consolidated across ${venues} exchanges, ${ageStr}).`);
   } else {
     lines.push("BTC price: unavailable.");
@@ -99,17 +106,29 @@ export async function buildBriefing(
 
   // ML signal — server returns a single prediction snapshot (whichever
   // horizon the upstream pricing-service most recently emitted).
+  // In brief mode, show probability only (less confusing than dual
+  // probability + confidence). In detailed mode, expose both labelled
+  // for the quant-minded reader.
   if (preds.status === "fulfilled" && preds.value?.direction) {
     const p = preds.value;
     const horizon = p.horizon_secs != null ? `${p.horizon_secs}s` : "?";
-    const conf = p.confidence != null ? ` (${(p.confidence * 100).toFixed(0)}% confidence)` : "";
-    const prob = p.probability != null ? `, p=${(p.probability * 100).toFixed(0)}%` : "";
-    lines.push(`ML ${horizon}: ${p.direction}${conf}${prob}.`);
-    if (verbosity === "detailed" && p.models?.length) {
-      const detail = p.models
-        .map((m) => `${m.name}${m.signal != null ? `=${m.signal.toFixed(3)}` : ""}`)
-        .join(", ");
-      lines.push(`  Sub-models: ${detail}.`);
+    if (verbosity === "detailed") {
+      const conf = p.confidence != null ? `, ${(p.confidence * 100).toFixed(0)}% model confidence` : "";
+      const prob = p.probability != null ? `${(p.probability * 100).toFixed(0)}% probability` : "no probability";
+      lines.push(`ML ${horizon}: ${p.direction} (${prob}${conf}).`);
+      if (p.models?.length) {
+        const detail = p.models
+          .map((m) => `${m.name}${m.signal != null ? `=${m.signal.toFixed(3)}` : ""}`)
+          .join(", ");
+        lines.push(`  Sub-models: ${detail}.`);
+      }
+    } else {
+      // Brief: pick the single most informative number (probability if
+      // available, else confidence). Skip both labels to keep the line
+      // short — agents can re-read the description if they want the math.
+      const pct = p.probability ?? p.confidence;
+      const pctStr = pct != null ? ` (${(pct * 100).toFixed(0)}% probability)` : "";
+      lines.push(`ML ${horizon}: ${p.direction}${pctStr}.`);
     }
   }
 
@@ -144,7 +163,9 @@ function detectAnomaly(
       .filter((x) => Number.isFinite(x));
     const max = ann.length ? Math.max(...ann) : 0;
     const min = ann.length ? Math.min(...ann) : 0;
-    if (max - min > 0.25) return `funding spread ${formatPct(max - min)} APR (>25% — basis or perp-perp arb opportunity).`;
+    // 15% APR spread is already meaningful for perp-perp arb after fees +
+    // borrow; raised noise floor above this would miss real opportunities.
+    if (max - min > 0.15) return `funding spread ${formatPct(max - min)} APR — basis or perp-perp arb opportunity (long lowest, short highest).`;
     if (Math.abs(max) > 0.5) return `extreme funding ${formatPct(max)} APR — perp positioning stretched.`;
   }
   if (preds.status === "fulfilled" && preds.value?.direction) {
@@ -163,4 +184,19 @@ function formatPrice(n: number): string {
 
 function formatPct(frac: number): string {
   return `${(frac * 100).toFixed(2)}%`;
+}
+
+// Age formatter shared between briefing and per-tool callers.
+// Sub-100ms is reported as "live" — exact ms ("0 ms old") reads oddly to
+// non-technical users and obscures that the data IS effectively realtime.
+export function formatAge(ageMs: number | null): string {
+  if (ageMs == null) return "fresh";
+  if (ageMs < 100) return "live";
+  if (ageMs < 1000) return `${ageMs} ms old`;
+  return `${(ageMs / 1000).toFixed(1)}s old`;
+}
+
+// "2026-05-13 11:53:42 UTC" — readable, sortable, unambiguous.
+export function formatIsoUtc(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 19).replace("T", " ") + " UTC";
 }

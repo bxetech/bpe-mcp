@@ -1,6 +1,6 @@
 {
   "name": "@bxetech/bpe-mcp",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "mcpName": "io.github.bxetech/bpe-mcp",
   "description": "MCP server for the BPE (Bitcoin Pricing Engine) market-data API. Lets Claude Desktop, Cursor, and other MCP-enabled agents query consolidated BTC pricing, ML signals, funding-rate skew, and natural-language market briefings.",
   "license": "MIT",

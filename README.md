@@ -5,7 +5,7 @@ API. Lets Claude Desktop, Cursor, Goose, and other MCP-enabled agents query
 consolidated Bitcoin pricing, ML signals, funding-rate skew, and
 natural-language market briefings — without writing any HTTP boilerplate.
 
-> **Status:** v0.1 prototype. Four tools, local stdio transport, no LLM
+> **Status:** v0.2 — five tools, local stdio transport, no LLM
 > calls inside the briefing endpoint (template-rendered). API key required.
 
 Listed in the [official MCP Server Registry](https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.bxetech/bpe-mcp) as `io.github.bxetech/bpe-mcp`. Install via `npm install -g @bxetech/bpe-mcp` or `npx -y @bxetech/bpe-mcp`.
@@ -25,14 +25,15 @@ options today:
 This MCP server is option 2 dressed up as native tools your agent can
 discover and call.
 
-## Tools (v0.1)
+## Tools (v0.2)
 
 | Tool | What it does |
 |---|---|
 | `get_consolidated_price` | Current BTC price aggregated across the BPE network |
-| `get_market_briefing` | 5–8 line natural-language market summary (price, funding, ML, sentiment, anomalies) |
+| `get_market_briefing` | ~4 lines (brief) or 6–8 (detailed) natural-language summary — price, funding skew, ML signal, sentiment, anomalies |
 | `get_funding_skew` | Per-venue annualised funding rates + max-spread pair |
-| `get_ml_signal` | Current ML prediction across configurable time horizons |
+| `get_ml_signal` | Current ML prediction (direction, probability, confidence) at the requested horizon |
+| `get_sentiment_snapshot` | Crypto Fear & Greed index, news sentiment, mempool stress |
 
 ## Install
 
@@ -57,7 +58,7 @@ Or use `npx` with no install (recommended for Claude Desktop):
 }
 ```
 
-Restart Claude Desktop. The four tools appear under the MCP server picker.
+Restart Claude Desktop. The five tools appear under the MCP server picker.
 
 ## Configuration
 
@@ -96,8 +97,8 @@ To dogfood in Claude Desktop while iterating, point at the local build:
 
 ## Roadmap
 
-- **v0.2** — `get_basis`, `get_sentiment_snapshot`, `subscribe_alert` (webhook subscription)
-- **v0.3** — Hosted HTTP transport for non-developer install (Cursor extension, ChatGPT Desktop)
+- **v0.2** — `get_sentiment_snapshot` ✅, friendly tier-aware errors ✅, timestamped briefings ✅
+- **v0.3** — `get_basis`, `subscribe_alert` (webhook subscription), hosted HTTP transport for non-developer install (Cursor extension, ChatGPT Desktop)
 - **v0.4** — Optional LLM-rendered briefing via Haiku (richer prose, with per-call cost)
 
 See [`docs/research/AGENT_INTEGRATION_AND_MONETISATION_2026-04-27.md`](../docs/research/AGENT_INTEGRATION_AND_MONETISATION_2026-04-27.md) for the broader product / monetisation plan.

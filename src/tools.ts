@@ -11,12 +11,15 @@
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
+  BpeApiError,
   type BpeClient,
   type DerivativesResponse,
   type PredictionsResponse,
   type PriceResponse,
+  type SentimentResponse,
 } from "./client.js";
 import { buildBriefing } from "./briefing.js";
+import { formatAge } from "./briefing.js";
 
 // All tools return a single text content block. Returning structured JSON
 // would also work, but text is the most agent-portable shape — every model
@@ -27,6 +30,29 @@ function asText(text: string) {
 
 function asError(text: string) {
   return { content: [{ type: "text" as const, text }], isError: true };
+}
+
+// Translate API errors into actionable messages a calling agent (or human
+// reading the agent's transcript) can act on. Recognises the common HTTP
+// status codes and emits an upgrade / retry / config hint instead of a raw
+// stack-trace-shaped string.
+function friendlyError(err: unknown, channel?: string): string {
+  if (err instanceof BpeApiError) {
+    if (err.status === 401) {
+      return "Invalid or missing API key. Set BPE_API_KEY in your MCP client config (see https://github.com/bxetech/bpe-mcp#install) or request one at https://bxetech.com/contact.";
+    }
+    if (err.status === 403) {
+      const ch = channel ? ` (requires the '${channel}' channel)` : "";
+      return `This tool needs Agent tier or higher${ch}. Free tier does not include it — see https://bxetech.com/agents for plans, or contact contact@bxetech.com to upgrade.`;
+    }
+    if (err.status === 429) {
+      return "Rate limit exceeded. Wait a few seconds and retry, or upgrade your tier at https://bxetech.com/agents for higher limits.";
+    }
+    if (err.status && err.status >= 500) {
+      return `BPE backend error (${err.status}). Try again in a moment. If this persists, email contact@bxetech.com.`;
+    }
+  }
+  return err instanceof Error ? err.message : String(err);
 }
 
 export function registerTools(server: McpServer, client: BpeClient): void {
@@ -45,17 +71,17 @@ export function registerTools(server: McpServer, client: BpeClient): void {
         const r = await client.get<PriceResponse>("price");
         const venues = r.exchange_count ?? "?";
         const ageMs = r.timestamp_ms != null ? Math.max(0, Date.now() - r.timestamp_ms) : null;
-        const ageStr = ageMs == null ? "n/a" : ageMs < 1000 ? `${ageMs}ms` : `${(ageMs / 1000).toFixed(1)}s`;
+        const ageStr = formatAge(ageMs);
         const lines = [`${symbol}: $${formatPrice(r.price)}`];
         if (r.best_bid != null && r.best_ask != null) {
           lines.push(`Bid/Ask: $${formatPrice(r.best_bid)} / $${formatPrice(r.best_ask)}` +
             (r.spread_bps != null ? ` (${r.spread_bps.toFixed(1)} bps spread)` : ""));
         }
-        lines.push(`Source: ${venues} exchanges contributing, ${ageStr} old` +
+        lines.push(`Source: ${venues} exchanges contributing, ${ageStr}` +
           (r.confidence != null ? `, confidence ${(r.confidence * 100).toFixed(0)}%` : "") + ".");
         return asText(lines.join("\n"));
       } catch (err) {
-        return asError(`Failed to fetch consolidated price: ${errMsg(err)}`);
+        return asError(`Failed to fetch consolidated price: ${friendlyError(err, "price")}`);
       }
     },
   );
@@ -63,7 +89,7 @@ export function registerTools(server: McpServer, client: BpeClient): void {
   // ── 2. get_market_briefing ───────────────────────────────────────────────
   server.tool(
     "get_market_briefing",
-    "Get a concise natural-language summary of the current Bitcoin market state. Synthesises consolidated price, funding-rate skew across major perpetual venues, current ML prediction, and sentiment indicators into a 5-8 line briefing. This is the most token-efficient way for an agent to get the 'what's happening right now' picture — replaces 4-5 raw data calls plus the reasoning to summarise them. Set verbosity='detailed' for per-venue funding breakdown and multi-horizon ML signals.",
+    "Get a concise natural-language summary of the current Bitcoin market state. Synthesises consolidated price, funding-rate skew across major perpetual venues, current ML prediction, and sentiment indicators. 'brief' mode returns roughly 4 lines (price, funding skew, ML signal, sentiment); 'detailed' adds per-venue funding breakdown and ML sub-model details — typically 6-8 lines. This is the most token-efficient way for an agent to get the 'what's happening right now' picture — replaces 4-5 raw data calls plus the reasoning to summarise them.",
     {
       verbosity: z
         .enum(["brief", "detailed"])
@@ -75,7 +101,7 @@ export function registerTools(server: McpServer, client: BpeClient): void {
         const briefing = await buildBriefing(client, verbosity);
         return asText(briefing);
       } catch (err) {
-        return asError(`Failed to build market briefing: ${errMsg(err)}`);
+        return asError(`Failed to build market briefing: ${friendlyError(err, "predictions+sentiment+derivatives")}`);
       }
     },
   );
@@ -113,7 +139,7 @@ export function registerTools(server: McpServer, client: BpeClient): void {
         }
         return asText(lines.join("\n"));
       } catch (err) {
-        return asError(`Failed to fetch funding skew: ${errMsg(err)}`);
+        return asError(`Failed to fetch funding skew: ${friendlyError(err, "derivatives")}`);
       }
     },
   );
@@ -169,7 +195,39 @@ export function registerTools(server: McpServer, client: BpeClient): void {
         }
         return asText(lines.join("\n"));
       } catch (err) {
-        return asError(`Failed to fetch ML signal: ${errMsg(err)}`);
+        return asError(`Failed to fetch ML signal: ${friendlyError(err, "predictions")}`);
+      }
+    },
+  );
+
+  // ── 5. get_sentiment_snapshot ───────────────────────────────────────────
+  server.tool(
+    "get_sentiment_snapshot",
+    "Get current Bitcoin market sentiment indicators: Crypto Fear & Greed index (0-100, with label like 'Fear' / 'Neutral' / 'Greed'), news sentiment (-1 most bearish to +1 most bullish), and mempool stress (0 calm to 1 highly congested). Useful for contextualising price action, detecting positioning extremes that may precede reversals, and as a coarse macro filter for shorter-horizon ML signals.",
+    {},
+    async () => {
+      try {
+        const r = await client.get<SentimentResponse>("sentiment");
+        const lines: string[] = [];
+        if (r.fear_greed_index != null) {
+          lines.push(
+            `Fear & Greed: ${r.fear_greed_index}/100` +
+              (r.fear_greed_label ? ` (${r.fear_greed_label})` : ""),
+          );
+        }
+        if (r.news_sentiment != null) {
+          const sign = r.news_sentiment > 0 ? "+" : "";
+          lines.push(`News sentiment: ${sign}${r.news_sentiment.toFixed(2)} (range -1 to +1)`);
+        }
+        if (r.mempool_stress != null) {
+          lines.push(`Mempool stress: ${r.mempool_stress.toFixed(2)} (range 0 to 1)`);
+        }
+        if (!lines.length) {
+          return asError("No sentiment data currently available — try again in a few seconds.");
+        }
+        return asText(lines.join("\n"));
+      } catch (err) {
+        return asError(`Failed to fetch sentiment: ${friendlyError(err, "sentiment")}`);
       }
     },
   );
@@ -181,8 +239,4 @@ function formatPrice(n: number): string {
 
 function formatPct(frac: number): string {
   return `${(frac * 100).toFixed(2)}%`;
-}
-
-function errMsg(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
