@@ -203,7 +203,7 @@ export function registerTools(server: McpServer, client: BpeClient): void {
   // ── 5. get_sentiment_snapshot ───────────────────────────────────────────
   server.tool(
     "get_sentiment_snapshot",
-    "Get current Bitcoin market sentiment indicators: Crypto Fear & Greed index (0-100, with label like 'Fear' / 'Neutral' / 'Greed'), news sentiment (-1 most bearish to +1 most bullish), and mempool stress (0 calm to 1 highly congested). Useful for contextualising price action, detecting positioning extremes that may precede reversals, and as a coarse macro filter for shorter-horizon ML signals.",
+    "Get current Bitcoin market sentiment indicators. Returns Crypto Fear & Greed index (0-100, with label), FinBERT news sentiment (-1 most bearish to +1 most bullish, scored from CoinDesk + Cointelegraph headlines), Google Trends search interest (0-100, baseline 50), and a composite score (-1 to +1) blending all three. Useful for contextualising price action, detecting positioning extremes that may precede reversals, and as a coarse macro filter for shorter-horizon ML signals. Individual indicators are omitted when their upstream collector hasn't run yet.",
     {},
     async () => {
       try {
@@ -215,12 +215,17 @@ export function registerTools(server: McpServer, client: BpeClient): void {
               (r.fear_greed_label ? ` (${r.fear_greed_label})` : ""),
           );
         }
-        if (r.news_sentiment != null) {
-          const sign = r.news_sentiment > 0 ? "+" : "";
-          lines.push(`News sentiment: ${sign}${r.news_sentiment.toFixed(2)} (range -1 to +1)`);
+        if (r.finbert_score != null) {
+          const sign = r.finbert_score > 0 ? "+" : "";
+          const label = r.finbert_label ? ` (${r.finbert_label})` : "";
+          lines.push(`News sentiment: ${sign}${r.finbert_score.toFixed(2)}${label} — FinBERT on financial news + social`);
         }
-        if (r.mempool_stress != null) {
-          lines.push(`Mempool stress: ${r.mempool_stress.toFixed(2)} (range 0 to 1)`);
+        if (r.google_trends != null) {
+          lines.push(`Search interest: ${r.google_trends}/100 — Google Trends for "bitcoin" (50 = baseline)`);
+        }
+        if (r.composite_score != null) {
+          const sign = r.composite_score > 0 ? "+" : "";
+          lines.push(`Composite: ${sign}${r.composite_score.toFixed(3)} (range -1 to +1, weighted FGI + FinBERT + Trends)`);
         }
         if (!lines.length) {
           return asError("No sentiment data currently available — try again in a few seconds.");

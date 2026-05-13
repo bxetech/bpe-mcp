@@ -124,10 +124,18 @@ export interface PredictionsResponse {
   timestamp_ms?: number;
 }
 
+// Mirrors the api-gateway SentimentUpdate wire format. Only
+// fear_greed_{index,label} are guaranteed; the rest are populated by the
+// FinBERT + Google Trends scheduler tasks and may be absent ("collector
+// hasn't run yet") rather than zero ("genuinely neutral"). The composite
+// is only emitted by the server when BOTH FinBERT and Trends are
+// present, so a partial weighting doesn't masquerade as a complete one.
 export interface SentimentResponse {
   fear_greed_index?: number;
   fear_greed_label?: string;
-  news_sentiment?: number;
-  mempool_stress?: number;
+  finbert_score?: number;        // -1 to +1, FinBERT on news/social text
+  finbert_label?: string;        // "Bearish" | "Neutral" | "Bullish"
+  google_trends?: number;        // 0-100, Google Trends interest for "bitcoin"
+  composite_score?: number;      // -1 to +1, 40% FGI + 40% FinBERT + 20% trends
   timestamp_ms?: number;
 }
